@@ -1,0 +1,76 @@
+# Python venv
+.venv/
+venv/
+
+# Datasets
+coco/
+data/
+datasets/
+
+# Large model checkpoints
+checkpoints/
+weights/
+models/
+
+# NLTK data
+nltk_data/
+
+# VSCode
+.vscode/
+
+# Cache
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+
+
+# Large Files
+data/
+models/
+*.h5
+*.pt
+*.zip
+*.jpg
+*.png
+*.npy
+*.ckpt
+
+
+# Ignore datasets
+data/
+dataset/
+images/
+captions/
+
+# Ignore model weights
+models/
+*.h5
+*.pt
+*.pth
+*.ckpt
+
+# Ignore preprocessed features
+*.npy
+*.npz
+features/
+
+# Ignore logs & cache
+logs/
+__pycache__/
+*.log
+
+# Ignore large compressed files
+*.zip
+*.rar
+*.tar
+*.gz
+
+# Ignore notebooks checkpoints
+.ipynb_checkpoints/
+
+# Ignore environment files
+env/
+venv/
+*.pkl
