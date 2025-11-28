@@ -54,7 +54,7 @@ Dataset: Flickr8k / COCO
 
 ⚙️ Installation
 1. Clone the Repository
-git clone https://github.com/yourusername/ai-caption-generator.git
+git clone https://github.com/Ashokbhariya/AI-Caption-Generator.git
 cd ai-caption-generator
 
 2. Install Dependencies
