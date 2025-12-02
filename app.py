@@ -61,30 +61,48 @@ grammar_tokenizer, grammar_model = load_grammar_model()
 translator = get_translator()
 lang_map = {"English": "en", "Telugu": "te", "Hindi": "hi", "Tamil": "ta", "Bengali": "bn"}
 
-
-
-def generate_captions_blip(image_file, processor, model, num_captions=5):
+def generate_captions_blip(image_file, processor, model, num_captions=5, emotion="Normal"):
     """
-    Generates 5 high-quality, diverse captions using stable beam search.
+    Generates emotion-aware captions using BLIP conditioned on a text prompt.
     """
-    # Use the in-memory file object directly
     raw_image = PILImage.open(image_file).convert("RGB")
-    
-  
-    inputs = processor(images=raw_image, return_tensors="pt") 
-   
+
+    # Map emotion to a natural-language prompt
+    emotion_prompts = {
+        "Normal":  "Write a simple, neutral caption for this image:",
+        "Romantic": "Write a romantic, love-filled caption for this image:",
+        "Joke":    "Write a funny, jokey caption for this image:",
+        "Happy":   "Write a very happy and cheerful caption for this image:",
+        "Sad":     "Write a sad, emotional caption for this image:",
+        "Angry":   "Write an angry, annoyed caption for this image:"
+    }
+
+    text_prompt = emotion_prompts.get(emotion, emotion_prompts["Normal"])
+
+    # 👉 KEY CHANGE: pass both image AND text to BLIP
+    inputs = processor(
+        images=raw_image,
+        text=text_prompt,
+        return_tensors="pt"
+    )
 
     outputs = model.generate(
         **inputs,
         max_length=50,
-        num_beams=10, 
-        num_return_sequences=num_captions, 
-        early_stopping=True
+        num_beams=10,
+        num_return_sequences=num_captions,
+        early_stopping=True,
+        # Optional: make it a bit more creative
+        # do_sample=True,
+        # temperature=0.8,
+        # top_k=50,
     )
-    
-    # Decode and ensure captions are unique
-    captions = [processor.decode(out, skip_special_tokens=True).strip() for out in outputs]
-    return list(set(captions)) # Use set() to remove potential duplicates
+
+    captions = [
+        processor.decode(out, skip_special_tokens=True).strip()
+        for out in outputs
+    ]
+    return list(set(captions))  # remove duplicates
 
 def correct_grammar(text, tokenizer, model):
     input_text = "gec: " + text
@@ -108,7 +126,14 @@ if uploaded_file is not None:
     if st.button("Generate Captions"):
         with st.spinner("Generating captions... This might take a moment."):
             
-            all_captions = generate_captions_blip(uploaded_file, blip_processor, blip_model, num_captions=5)
+            all_captions = generate_captions_blip(
+                  uploaded_file,
+                  blip_processor,
+                  blip_model,
+                  num_captions=5,
+                  emotion=emotion
+                                )
+
             
             st.subheader("Generated Captions:")
             if not all_captions:
