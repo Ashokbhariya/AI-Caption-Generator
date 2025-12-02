@@ -3,24 +3,19 @@ import numpy as np
 import pickle
 import os
 
-# --- Keras 3 Compatibility Fix ---
-# This environment variable is still needed if Keras 3 is installed
-# for other reasons, but it won't conflict with PyTorch.
+
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
-# --- End Keras 3 Fix ---
+
 
 from PIL import Image as PILImage
 
-# --- START OF ROBUST NLTK FIX (v3) ---
-# This block is critical to prevent all NLTK errors.
-# We are now using a basic tokenizer that does NOT depend on loading the
-# problematic 'english.pickle' file.
+
 import nltk
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from nltk.tokenize.punkt import PunktSentenceTokenizer
 from nltk.tokenize import TreebankWordTokenizer
 
-# Initialize a 'blank' sentence tokenizer.
+
 sentence_tokenizer = PunktSentenceTokenizer()
 word_tokenizer_instance = TreebankWordTokenizer()
 
@@ -36,20 +31,15 @@ def safe_word_tokenize(text):
     for sent in sentences:
         words.extend(word_tokenizer_instance.tokenize(sent))
     return words
-# --- END OF ROBUST NLTK FIX ---
 
-# Import the correct model versions
-# We are now using the PyTorch-native versions
 from transformers import BlipProcessor, BlipForConditionalGeneration, AutoTokenizer, AutoModelForSeq2SeqLM
 from googletrans import Translator
-
-# --- CACHED FUNCTIONS TO LOAD MODELS ONLY ONCE ---
 
 @st.cache_resource
 def load_blip_model():
     """Loads the Salesforce BLIP model and processor."""
     processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-    # FIXED: Use the original PyTorch (PT) version
+
     model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
     return processor, model
 
@@ -65,40 +55,54 @@ def get_translator():
     """Returns a Translator instance."""
     return Translator()
 
-# --- LOAD ALL MODELS USING CACHED FUNCTIONS ---
+
 blip_processor, blip_model = load_blip_model()
 grammar_tokenizer, grammar_model = load_grammar_model()
 translator = get_translator()
 lang_map = {"English": "en", "Telugu": "te", "Hindi": "hi", "Tamil": "ta", "Bengali": "bn"}
 
-
-# --- CORE LOGIC FUNCTIONS ---
-
-def generate_captions_blip(image_file, processor, model, num_captions=5):
+def generate_captions_blip(image_file, processor, model, num_captions=5, emotion="Normal"):
     """
-    Generates 5 high-quality, diverse captions using stable beam search.
+    Generates emotion-aware captions using BLIP conditioned on a text prompt.
     """
-    # Use the in-memory file object directly
     raw_image = PILImage.open(image_file).convert("RGB")
-    
-    # --- THIS IS THE FIX ---
-    # Changed return_tensors from "tf" back to "pt" (PyTorch)
-    # This matches the BlipForConditionalGeneration (PyTorch) model.
-    inputs = processor(images=raw_image, return_tensors="pt") 
-    # --- END OF FIX ---
-    
-    # Use stable beam search.
+
+    # Map emotion to a natural-language prompt
+    emotion_prompts = {
+        "Normal":  "Write a simple, neutral caption for this image:",
+        "Romantic": "Write a romantic, love-filled caption for this image:",
+        "Joke":    "Write a funny, jokey caption for this image:",
+        "Happy":   "Write a very happy and cheerful caption for this image:",
+        "Sad":     "Write a sad, emotional caption for this image:",
+        "Angry":   "Write an angry, annoyed caption for this image:"
+    }
+
+    text_prompt = emotion_prompts.get(emotion, emotion_prompts["Normal"])
+
+    # 👉 KEY CHANGE: pass both image AND text to BLIP
+    inputs = processor(
+        images=raw_image,
+        text=text_prompt,
+        return_tensors="pt"
+    )
+
     outputs = model.generate(
         **inputs,
         max_length=50,
-        num_beams=10, # Use more beams for better results
-        num_return_sequences=num_captions, # Ask for 5 captions
-        early_stopping=True
+        num_beams=10,
+        num_return_sequences=num_captions,
+        early_stopping=True,
+        # Optional: make it a bit more creative
+        # do_sample=True,
+        # temperature=0.8,
+        # top_k=50,
     )
-    
-    # Decode and ensure captions are unique
-    captions = [processor.decode(out, skip_special_tokens=True).strip() for out in outputs]
-    return list(set(captions)) # Use set() to remove potential duplicates
+
+    captions = [
+        processor.decode(out, skip_special_tokens=True).strip()
+        for out in outputs
+    ]
+    return list(set(captions))  # remove duplicates
 
 def correct_grammar(text, tokenizer, model):
     input_text = "gec: " + text
@@ -122,7 +126,14 @@ if uploaded_file is not None:
     if st.button("Generate Captions"):
         with st.spinner("Generating captions... This might take a moment."):
             
-            all_captions = generate_captions_blip(uploaded_file, blip_processor, blip_model, num_captions=5)
+            all_captions = generate_captions_blip(
+                  uploaded_file,
+                  blip_processor,
+                  blip_model,
+                  num_captions=5,
+                  emotion=emotion
+                                )
+
             
             st.subheader("Generated Captions:")
             if not all_captions:
